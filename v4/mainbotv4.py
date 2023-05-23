@@ -1,7 +1,6 @@
 import time
 from math import sqrt
 
-import numba
 from numba import int32, float64
 from numba.experimental import jitclass
 
@@ -19,6 +18,8 @@ spec = [
     ('max_depth', int32),
     ('min_stop_depth', int32),
     ('curr_depth', int32),
+    ('hard_time_limit', int32),
+    ('soft_time_limit', int32),
     ('start_time', float64),
     ('node_count', int32),
     ('stopped', numba.boolean),
@@ -37,16 +38,23 @@ class MainAiV4:
         self.min_stop_depth = 1
         self.curr_depth = 0
 
+        self.hard_time_limit = int32(MAXTIME * 2.4)
+        self.soft_time_limit = int32(MAXTIME * 0.3)
+
         self.start_time = 0
         self.node_count = 0
 
         self.stopped = False
 
         self.pst = numpy.zeros((BOARDHEIGHT, BOARDWIDTH), dtype=numpy.int32)
+        max_layer = max(YMID, XMID)
         for i in range(BOARDHEIGHT):
             for j in range(BOARDWIDTH):
-                self.pst[i][j] = int((YMID / 2 - math.floor(abs(YMID - i))) * 12
-                                     + (XMID / 2 - math.floor(abs(XMID - j))) * 12)
+                layer = max(abs((YMID - i)), abs(XMID - j))
+                layer = max(layer, max_layer - WINNEED + 1)
+                self.pst[i][j] = 3 * (max_layer - layer)
+
+        print(self.pst)
 
         self.hash_key = 0
         self.transposition_table = numpy.zeros(MAX_HASH_SIZE, dtype=NUMBA_HASH_TYPE)
@@ -62,7 +70,7 @@ def get_time():
 
 @njit(cache=True)
 def check_time(engine):
-    if get_time() - engine.start_time >= MAXTIME and engine.curr_depth >= engine.min_stop_depth:
+    if get_time() - engine.start_time >= engine.hard_time_limit and engine.curr_depth >= engine.min_stop_depth:
         engine.stopped = True
 
 
@@ -71,14 +79,16 @@ def negamax(engine, board, plr, alpha, beta, last_y, last_x, depth):
 
     index = engine.hash_key % MAX_HASH_SIZE
 
-    test_result = check_win(board, WINNEED, last_y, last_x)
+    test_result = check_win(board, last_y, last_x)
     if test_result:
         return -1, -1, -10000 - depth
 
-    if depth == 0:
+    if depth <= 0:
         return -1, -1, evaluate(engine, board, plr)
 
-    moves = get_sorted_moves(engine, board)
+    engine.node_count += 1
+
+    moves = get_sorted_moves(engine, board, last_y, last_x)
     if len(moves) == 0:
         return -1, -1, 0
 
@@ -110,8 +120,6 @@ def negamax(engine, board, plr, alpha, beta, last_y, last_x, depth):
 
     pv_node = alpha != beta - 1
 
-    engine.node_count += 1
-
     best_move = (-1, -1)
     best_score = -100000
     legal_moves = 0
@@ -124,22 +132,18 @@ def negamax(engine, board, plr, alpha, beta, last_y, last_x, depth):
         reduction = 0
 
         # Late move reductions
-        if legal_moves >= 6 + sqrt(BOARDHEIGHT * BOARDWIDTH) / 3 and depth >= 3:
-            reduction += 1
+        if legal_moves >= 12 + sqrt(BOARDHEIGHT * BOARDWIDTH) / 2 + pv_node * 5 and depth >= 3:
+            reduction = 1
 
             if pv_node:
                 reduction -= 1
 
-            if legal_moves >= 18 + sqrt(BOARDHEIGHT * BOARDWIDTH) / 2:
-                reduction += 1
-            if legal_moves >= 36 + sqrt(BOARDHEIGHT * BOARDWIDTH):
-                reduction += 1
             if legal_moves >= (BOARDHEIGHT * BOARDWIDTH) * 0.6:
                 reduction += 1
-            if legal_moves >= (BOARDHEIGHT * BOARDWIDTH) * 0.8:
+            if legal_moves >= (BOARDHEIGHT * BOARDWIDTH) * 0.825:
                 reduction += 1
 
-            reduction = min(depth - 1, reduction)
+            reduction = min(depth - 2, reduction)
 
         # PVS
         if legal_moves == 0:
@@ -163,16 +167,20 @@ def negamax(engine, board, plr, alpha, beta, last_y, last_x, depth):
             return -2, -2, 0
 
         return_eval = -returned[2]
+
+        # print(return_eval)
+
         if return_eval > best_score:
             best_score = return_eval
             best_move = move
 
-        if return_eval > alpha:
-            alpha = return_eval
-            tt_hash_flag = HASH_FLAG_EXACT
+            if return_eval > alpha:
+                alpha = return_eval
+                tt_hash_flag = HASH_FLAG_EXACT
 
-            if alpha >= beta:
-                break
+                if alpha >= beta:
+                    tt_hash_flag = HASH_FLAG_BETA
+                    break
 
         legal_moves += 1
 
@@ -206,13 +214,19 @@ def iterative_deepening(engine, board, plr, last_move):
         returned = negamax(engine, np_board, plr, MIN, MAX, last_move[0], last_move[1], engine.curr_depth + 1)
 
         node_sum += engine.node_count
+        elapsed_time = time.time() - engine.start_time
+
         if returned[0] != -2:
-            best_return = [[returned[0], returned[1]], returned[2] if plr == 1 else -returned[1]]
-            print(engine.curr_depth, time.time() - engine.start_time,
+            best_return = [[returned[0], returned[1]], returned[2]]
+            print(engine.curr_depth, elapsed_time,
                   best_return[0], best_return[1] / 100, engine.node_count, node_sum)
         else:
             print(engine.curr_depth, "UNFINISHED", engine.node_count, node_sum)
             return best_return
+
+        if elapsed_time >= engine.soft_time_limit:
+            engine.stopped = True
+            break
 
     return best_return
 

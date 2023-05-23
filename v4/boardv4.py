@@ -30,7 +30,7 @@ def generate_hash_key(board):
 
 
 @njit(cache=True)
-def get_sorted_moves(engine, board):
+def get_sorted_moves(engine, board, last_y, last_x):
     moves = []
     for i in range(BOARDHEIGHT):
         for j in range(BOARDWIDTH):
@@ -42,27 +42,40 @@ def get_sorted_moves(engine, board):
     for i, move in enumerate(moves):
         move_scores[i] += engine.pst[move[0]][move[1]]
 
+        dist = 0 if last_y == -1 else max(abs(last_y - move[0]), abs(last_x - move[1]))
+
+        move_scores[i] -= dist * 12
+
     zipped_moves = zip(move_scores, moves)
     ordered_moves = [move for _, move in sorted(zipped_moves, reverse=True)]
     return ordered_moves
 
 
 @njit(cache=True)
-def check_win(board, amt, last_y, last_x):
+def check_win(board, last_y, last_x):
     if last_x == -1:
         return False
 
     color = board[last_y][last_x]
-    for increment in traversal_increments:
-        new_y = last_y
-        new_x = last_x
-        for i in range(amt - 1):  # excluding starting point
-            new_y += increment[0]
-            new_x += increment[1]
-            if new_y >= BOARDHEIGHT or new_y < 0 or new_x >= BOARDWIDTH or new_x < 0 or board[new_y][new_x] != color:
-                break
-            if i == amt - 2:  # -2 for excluding starting point and because index starts at 0
-                return True
+    for test_y in range(last_y - (WINNEED - 1) / 2, last_y + (WINNEED + 1) / 2):
+        for test_x in range(last_x - (WINNEED - 1) / 2, last_x + (WINNEED + 1) / 2):
+            if test_x < 0 or test_x >= BOARDWIDTH or test_y < 0 or test_y >= BOARDHEIGHT:
+                continue
+            if board[test_y, test_x] != color:
+                continue
+
+            for increment in traversal_increments:
+                new_y = test_y
+                new_x = test_x
+                for i in range(1, WINNEED):  # excluding starting point
+                    new_y += increment[0]
+                    new_x += increment[1]
+
+                    if new_y >= BOARDHEIGHT or new_y < 0 or new_x >= BOARDWIDTH or new_x < 0 or board[new_y][new_x] != color:
+                        break
+
+                    if i + 1 == WINNEED:  # -2 for excluding starting point and because index starts at 0
+                        return True
 
     return False
 

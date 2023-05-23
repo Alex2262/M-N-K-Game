@@ -21,6 +21,7 @@ def main():
     global basicFont, possibleMoves
     pygame.init()
     display = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
+    pygame.display.set_caption("M-N-K Game")
     basicFont = pygame.font.SysFont('lucidagrande', BASICFONTSIZE)
 
     main_board = get_starting_board()

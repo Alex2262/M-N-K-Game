@@ -182,17 +182,27 @@ def np_test_for_win_enhanced(board, amt, last_y, last_x):
     if last_x == -1:
         return False
 
-    color = board[last_y, last_x]
-    for increment in traversal_increments:
-        new_y = last_y
-        new_x = last_x
-        for i in range(amt-1):  # excluding starting point
-            new_y += increment[0]
-            new_x += increment[1]
-            if new_y >= BOARDHEIGHT or new_y < 0 or new_x >= BOARDWIDTH or new_x < 0 or board[new_y][new_x] != color:
-                break
-            if i == amt-2:  # -2 for excluding starting point and because index starts at 0
-                return True
+    color = board[last_y][last_x]
+    for test_y in range(last_y - (amt - 1) / 2, last_y + (amt + 1) / 2):
+        for test_x in range(last_x - (amt - 1) / 2, last_x + (amt + 1) / 2):
+            if test_x < 0 or test_x >= BOARDWIDTH or test_y < 0 or test_y >= BOARDHEIGHT:
+                continue
+            if board[test_y, test_x] != color:
+                continue
+
+            for increment in traversal_increments:
+                new_y = test_y
+                new_x = test_x
+                for i in range(1, amt):  # excluding starting point
+                    new_y += increment[0]
+                    new_x += increment[1]
+
+                    if new_y >= BOARDHEIGHT or new_y < 0 or new_x >= BOARDWIDTH or new_x < 0 or board[new_y][
+                        new_x] != color:
+                        break
+
+                    if i + 1 == amt:  # -2 for excluding starting point and because index starts at 0
+                        return True
 
     return False
 

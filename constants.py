@@ -1,6 +1,6 @@
 
-BOARDWIDTH = 15  # amount of x-axis squares
-BOARDHEIGHT = 15  # amount of y-axis squares
+BOARDWIDTH = 9  # amount of x-axis squares
+BOARDHEIGHT = 9  # amount of y-axis squares
 WINNEED = 5  # amount in a row to win
 
 SQUARESIZE = 40
@@ -20,7 +20,7 @@ TTD = 9  # transposition table + abp minimax fixed depth
 TTMD = 9  # TT Iterative Deepening max depth
 
 ITERATIVEDEEPENING = True
-MAXTIME = 5
+MAXTIME = 8
 
 BASICFONTSIZE = 30
 TEXTCOLOR = (140, 140, 140)
